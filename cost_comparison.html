@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Pipeline Cost Comparison</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg-card: #131826;
+    --bg-elev: #1a2033;
+    --border: #2a3247;
+    --text: #e6e9f0;
+    --text-dim: #98a2b8;
+    --accent: #7dd3fc;
+    --green: #6ee7b7;
+    --yellow: #fcd34d;
+    --red: #fca5a5;
+    --orange: #fdba74;
+    --purple: #c4b5fd;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px;
+    font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.5;
+  }
+  .container { max-width: 720px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 24px; }
+  h1 { margin: 0 0 6px; font-size: 22px; font-weight: 700; }
+  .subtitle { color: var(--text-dim); font-size: 13px; margin: 0; }
+
+  .panel {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; margin-bottom: 16px;
+  }
+  h2 { margin: 0 0 14px; font-size: 15px; color: var(--accent); font-weight: 600; }
+
+  /* Cost bars */
+  .approach { margin-bottom: 18px; }
+  .approach:last-child { margin-bottom: 0; }
+  .approach-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .approach-name { font-weight: 600; font-size: 14px; }
+  .approach-cost {
+    font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700;
+  }
+  .bar-track {
+    background: var(--bg-elev); border-radius: 6px; height: 28px;
+    position: relative; overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%; border-radius: 6px;
+    display: flex; align-items: center; padding: 0 10px;
+    font-size: 11px; color: white; font-weight: 600;
+    white-space: nowrap; transition: width 1s ease;
+  }
+  .bar-fill.naive   { background: linear-gradient(90deg, #ef4444, #f97316); }
+  .bar-fill.hybrid  { background: linear-gradient(90deg, #f59e0b, #eab308); }
+  .bar-fill.smart   { background: linear-gradient(90deg, #10b981, #06b6d4); }
+
+  .breakdown {
+    display: flex; gap: 12px; margin-top: 6px;
+    font-size: 11px; color: var(--text-dim);
+  }
+  .breakdown span { background: var(--bg-elev); padding: 2px 8px; border-radius: 4px; }
+
+  /* Metric grid */
+  .metrics {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+    margin-top: 14px;
+  }
+  .metric {
+    background: var(--bg-elev); padding: 12px; border-radius: 8px;
+    text-align: center;
+  }
+  .metric-value {
+    font-size: 22px; font-weight: 700; color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .metric-label { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+  /* Layer cost breakdown */
+  .layer-row {
+    display: grid; grid-template-columns: 32px 1fr 90px 70px;
+    gap: 10px; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .layer-row:last-child { border-bottom: none; }
+  .layer-num {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 11px; background: var(--bg-elev);
+  }
+  .layer-num.purple { color: var(--purple); border: 1px solid var(--purple); }
+  .layer-num.green  { color: var(--green); }
+  .layer-num.blue   { color: var(--accent); }
+  .layer-num.orange { color: var(--orange); border: 1px solid var(--orange); }
+  .layer-name { font-weight: 500; }
+  .layer-type { font-size: 11px; color: var(--text-dim); }
+  .layer-cost {
+    text-align: right; font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .layer-cost.zero { color: var(--green); }
+  .layer-cost.paid { color: var(--orange); }
+
+  .footer-note {
+    text-align: center; font-size: 12px; color: var(--text-dim);
+    margin-top: 20px;
+  }
+
+  @media (max-width: 540px) {
+    .metrics { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<header>
+  <h1>LLM Pipeline Cost Comparison</h1>
+  <p class="subtitle">Cost to process 1,000 clinical observations</p>
+</header>
+
+<div class="panel">
+  <h2>Three Approaches, Three Outcomes</h2>
+
+  <div class="approach">
+    <div class="approach-header">
+      <div class="approach-name">Naive cloud-only (Opus does everything)</div>
+      <div class="approach-cost" style="color:var(--red)">$200.00</div>
+    </div>
+    <div class="bar-track"><div class="bar-fill naive" style="width:100%">1,000 LLM calls</div></div>
+    <div class="breakdown">
+      <span>1,000 calls</span>
+      <span>~$0.20/call</span>
+      <span>non-deterministic</span>
+    </div>
+  </div>
+
+  <div class="approach">
+    <div class="approach-header">
+      <div class="approach-name">Hybrid (Sonnet extract + Sonnet validate)</div>
+      <div class="approach-cost" style="color:var(--yellow)">$10.00</div>
+    </div>
+    <div class="bar-track"><div class="bar-fill hybrid" style="width:5%">2,000 calls</div></div>
+    <div class="breakdown">
+      <span>2,000 calls</span>
+      <span>~$0.005/call</span>
+      <span>still drifts</span>
+    </div>
+  </div>
+
+  <div class="approach">
+    <div class="approach-header">
+      <div class="approach-name">Lossy Parser + Compiled AI + Conditional Judge</div>
+      <div class="approach-cost" style="color:var(--green)">$0.15</div>
+    </div>
+    <div class="bar-track"><div class="bar-fill smart" style="width:0.5%">~150 judge calls</div></div>
+    <div class="breakdown">
+      <span>~150 calls</span>
+      <span>~$0.001/call</span>
+      <span>auditable</span>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-value">1,333×</div>
+      <div class="metric-label">cheaper than naive</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value">85%</div>
+      <div class="metric-label">records skip the LLM entirely</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value">100%</div>
+      <div class="metric-label">deterministic on canonical fields</div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Where the Cost Goes (per record)</h2>
+
+  <div class="layer-row">
+    <div class="layer-num">L0</div>
+    <div>
+      <div class="layer-name">Source parsers</div>
+      <div class="layer-type">stdlib · runs every record</div>
+    </div>
+    <div class="layer-type">100% records</div>
+    <div class="layer-cost zero">$0</div>
+  </div>
+
+  <div class="layer-row">
+    <div class="layer-num purple">L1</div>
+    <div>
+      <div class="layer-name">Constrained extraction (Outlines)</div>
+      <div class="layer-type">local LLM · runs every record</div>
+    </div>
+    <div class="layer-type">100% records</div>
+    <div class="layer-cost zero">~$0</div>
+  </div>
+
+  <div class="layer-row">
+    <div class="layer-num green">L2</div>
+    <div>
+      <div class="layer-name">Computation module (Compiled AI)</div>
+      <div class="layer-type">pure Python · runs every record</div>
+    </div>
+    <div class="layer-type">100% records</div>
+    <div class="layer-cost zero">$0</div>
+  </div>
+
+  <div class="layer-row">
+    <div class="layer-num blue">L3</div>
+    <div>
+      <div class="layer-name">Deterministic validator</div>
+      <div class="layer-type">pure Python · runs every record</div>
+    </div>
+    <div class="layer-type">100% records</div>
+    <div class="layer-cost zero">$0</div>
+  </div>
+
+  <div class="layer-row">
+    <div class="layer-num orange">L4</div>
+    <div>
+      <div class="layer-name">Conditional judge (Haiku tool_use)</div>
+      <div class="layer-type">cloud LLM · only on flagged records</div>
+    </div>
+    <div class="layer-type">~15% records</div>
+    <div class="layer-cost paid">~$0.001</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>The Architecture Pays for Itself</h2>
+  <p style="font-size:13px;color:var(--text-dim);line-height:1.6;margin:0 0 10px">
+    The savings aren't from clever prompts or smaller models. They're structural.
+    The LLM is asked to do exactly <b style="color:var(--text)">one job</b> —
+    parse messy text into a Pydantic model — and is sandwiched between deterministic
+    Python on both sides. Every other operation (LOINC lookup, unit conversion, range
+    checks, deduplication, validation) is plain code. The judge LLM is summoned, not
+    on retainer. <b style="color:var(--accent)">Cost discipline falls out of the design.</b>
+  </p>
+  <p style="font-size:13px;color:var(--text-dim);line-height:1.6;margin:0">
+    And so does compliance. Every layer emits a SHA-256-chained audit event into an append-only log,
+    mapping directly to <b style="color:var(--green)">ALCOA++</b> (Attributable, Legible, Contemporaneous, Original, Accurate, Complete, Consistent, Enduring, Available)
+    and <b style="color:var(--green)">21 CFR Part 11</b> (§11.10(a–e), §11.50, §11.70, §11.200).
+    Total compliance code: <b style="color:var(--text)">~120 lines of Python</b>.
+  </p>
+</div>
+
+<p class="footer-note">
+  DCT Simple — the 5-layer LLM sandwich · Pydantic · Outlines · Anthropic Haiku
+</p>
+
+</div>
+</body>
+</html>
