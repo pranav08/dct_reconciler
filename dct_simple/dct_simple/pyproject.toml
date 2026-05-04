@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dct-simple"
+version = "1.0.0"
+description = "DCT data quality pipeline — the 5-layer LLM sandwich"
+requires-python = ">=3.10"
+dependencies = [
+  # Schemas
+  "pydantic>=2.7.0",
+
+  # Constrained decoding (PRIMARY)
+  "outlines>=0.0.46",
+  "transformers>=4.40.0",
+  "torch>=2.3.0",
+
+  # Constrained decoding (ALTERNATIVE)
+  "instructor>=1.3.0",
+
+  # Cloud LLM (judge)
+  "anthropic>=0.30.0",
+
+  # Demo / CLI
+  "rich>=13.7.0",
+  "loguru>=0.7.2",
+
+  # Tests
+  "pytest>=8.2.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

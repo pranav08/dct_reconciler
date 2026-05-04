@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DCT Simple — The 5-Layer LLM Sandwich</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg-card: #131826;
+    --bg-elev: #1a2033;
+    --border: #2a3247;
+    --text: #e6e9f0;
+    --text-dim: #98a2b8;
+    --accent: #7dd3fc;
+    --green: #6ee7b7;
+    --yellow: #fcd34d;
+    --red: #fca5a5;
+    --blue: #93c5fd;
+    --purple: #c4b5fd;
+    --orange: #fdba74;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.55;
+    font-size: 14px;
+  }
+  header {
+    padding: 24px 20px 12px; text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; }
+  header p  { margin: 0; color: var(--text-dim); font-size: 13px; }
+  nav.tabs {
+    display: flex; overflow-x: auto; gap: 2px;
+    background: var(--bg-card); padding: 8px;
+    border-bottom: 1px solid var(--border);
+    scrollbar-width: thin;
+  }
+  nav.tabs button {
+    background: transparent; color: var(--text-dim);
+    border: none; padding: 10px 14px; cursor: pointer;
+    border-radius: 6px; font-size: 13px; white-space: nowrap;
+    font-family: inherit; font-weight: 500; transition: all .15s;
+  }
+  nav.tabs button:hover { background: var(--bg-elev); color: var(--text); }
+  nav.tabs button.active {
+    background: var(--accent); color: var(--bg);
+  }
+  main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+  .panel { display: none; }
+  .panel.active { display: block; animation: fade .2s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  h2 { font-size: 18px; margin: 0 0 12px; font-weight: 600; }
+  h3 { font-size: 15px; margin: 16px 0 8px; font-weight: 600; color: var(--accent); }
+
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-bottom: 12px;
+  }
+  .card.layer { display: flex; gap: 12px; align-items: flex-start; }
+  .card.layer .badge {
+    flex-shrink: 0; width: 56px; height: 56px;
+    border-radius: 10px; display: flex; align-items: center;
+    justify-content: center; font-size: 18px; font-weight: 700;
+    background: var(--bg-elev);
+  }
+  .card.layer.l0 .badge { color: var(--text-dim); }
+  .card.layer.l1 .badge { color: var(--purple); border: 2px solid var(--purple); }
+  .card.layer.l2 .badge { color: var(--green); }
+  .card.layer.l3 .badge { color: var(--blue); }
+  .card.layer.l4 .badge { color: var(--orange); border: 2px solid var(--orange); }
+
+  .card.layer h3 { margin: 0 0 4px; font-size: 14px; }
+  .card.layer p  { margin: 4px 0; font-size: 13px; color: var(--text-dim); }
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600; margin-right: 4px;
+    background: var(--bg-elev); color: var(--text-dim);
+  }
+  .tag.llm    { background: rgba(196,181,253,.15); color: var(--purple); }
+  .tag.python { background: rgba(110,231,183,.15); color: var(--green);  }
+  .tag.cost-zero { background: rgba(110,231,183,.15); color: var(--green); }
+  .tag.cost-paid { background: rgba(253,186,116,.15); color: var(--orange); }
+
+  /* Flow diagram */
+  .flow {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px;
+  }
+  .flow-row {
+    padding: 12px; margin-bottom: 6px;
+    background: var(--bg-elev); border-radius: 8px;
+    border-left: 4px solid var(--border);
+    font-size: 13px;
+  }
+  .flow-row.l1 { border-left-color: var(--purple); }
+  .flow-row.l2 { border-left-color: var(--green); }
+  .flow-row.l3 { border-left-color: var(--blue); }
+  .flow-row.l4 { border-left-color: var(--orange); }
+  .flow-row.gate {
+    background: linear-gradient(90deg, rgba(252,211,77,.06), transparent);
+    border-left-color: var(--yellow);
+  }
+  .flow-row b { color: var(--text); }
+  .flow-arrow {
+    text-align: center; color: var(--text-dim);
+    font-size: 18px; margin: -2px 0;
+  }
+
+  /* Concepts grid */
+  .concepts { display: grid; gap: 12px; }
+  .concept {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px;
+  }
+  .concept .num {
+    display: inline-block; width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent); color: var(--bg);
+    text-align: center; line-height: 28px; font-weight: 700;
+    margin-right: 10px;
+  }
+  .concept h3 { display: inline; margin: 0; vertical-align: middle; color: var(--text); }
+  .concept .map {
+    margin-top: 10px; padding: 8px 12px; background: var(--bg-elev);
+    border-radius: 6px; font-size: 12px; color: var(--text-dim);
+  }
+  .concept .map b { color: var(--accent); }
+
+  /* Cost table */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.highlight td { background: rgba(110,231,183,.06); }
+  tr.highlight td:first-child { color: var(--green); font-weight: 600; }
+
+  /* Code blocks */
+  pre {
+    background: #0d1117; border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px; overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px; line-height: 1.5;
+  }
+  pre code { color: var(--text); }
+  .star { color: var(--yellow); }
+
+  /* Bar chart */
+  .bar-chart { padding: 16px 0; }
+  .bar-row {
+    display: grid; grid-template-columns: 130px 1fr 80px;
+    align-items: center; gap: 8px; margin-bottom: 10px;
+    font-size: 13px;
+  }
+  .bar-label { color: var(--text); font-weight: 500; }
+  .bar-track {
+    background: var(--bg-elev); border-radius: 4px; height: 22px;
+    position: relative; overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%; border-radius: 4px;
+    background: linear-gradient(90deg, var(--blue), var(--purple));
+    transition: width .6s ease;
+  }
+  .bar-fill.expensive { background: linear-gradient(90deg, var(--orange), var(--red)); }
+  .bar-fill.cheap     { background: linear-gradient(90deg, var(--green), var(--accent)); }
+  .bar-value { font-variant-numeric: tabular-nums; text-align: right; color: var(--text-dim); }
+
+  .callout {
+    background: rgba(125,211,252,.06); border: 1px solid var(--accent);
+    border-radius: 8px; padding: 12px 14px; margin: 12px 0;
+    font-size: 13px; line-height: 1.6;
+  }
+  .callout b { color: var(--accent); }
+
+  ul.bullets { margin: 8px 0; padding-left: 18px; }
+  ul.bullets li { margin: 4px 0; font-size: 13px; }
+
+  @media (max-width: 600px) {
+    main { padding: 12px; }
+    h2 { font-size: 16px; }
+    .card.layer { flex-direction: column; }
+    .card.layer .badge { width: 100%; height: 36px; }
+    .bar-row { grid-template-columns: 90px 1fr 70px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>DCT Simple — The 5-Layer LLM Sandwich</h1>
+  <p>Taming the LLM into a lossy parser · 170× cheaper than naive cloud-LLM pipelines</p>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="flow">Flow</button>
+  <button class="tab-btn" data-tab="concepts">5 Concepts</button>
+  <button class="tab-btn" data-tab="layers">5 Layers</button>
+  <button class="tab-btn" data-tab="cost">Cost Math</button>
+  <button class="tab-btn" data-tab="libs">Libraries</button>
+  <button class="tab-btn" data-tab="compliance">Compliance</button>
+</nav>
+
+<main>
+
+<!-- ─── Flow ─────────────────────────────────────────────────────── -->
+<section class="panel active" id="panel-flow">
+  <h2>The Pipeline Flow</h2>
+  <p style="color:var(--text-dim);margin:0 0 14px">Two LLM-using layers (purple, orange). Three deterministic layers (green, blue, grey). One conditional gate.</p>
+
+  <div class="flow">
+    <div class="flow-row">
+      <b>Messy input</b> · vendor JSON · CRF CSV · HL7 v2 fragment
+      <span class="tag">3 formats</span>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row l1" style="border-left-width:4px;">
+      <b>Layer 0: Source parsers</b> — normalise format → SourceRecord
+      <div style="margin-top:4px">
+        <span class="tag python">pure Python</span>
+        <span class="tag cost-zero">$0</span>
+      </div>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row l1">
+      <b>Layer 1: Constrained extraction</b> — Outlines compiles Pydantic → FSM
+      <div style="margin-top:4px;font-size:12px;color:var(--text-dim)">
+        The LLM <b style="color:var(--purple)">cannot</b> emit invalid enum values · output: RawObservation (lossy)
+      </div>
+      <div style="margin-top:4px">
+        <span class="tag llm">LLM (local)</span>
+        <span class="tag cost-zero">~$0 (on-prem)</span>
+      </div>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row l2">
+      <b>Layer 2: Computation module</b> — LOINC / UCUM / range / dedup / LOCF
+      <div style="margin-top:4px;font-size:12px;color:var(--text-dim)">
+        Compiled AI: dictionaries, math, hashes — never the LLM
+      </div>
+      <div style="margin-top:4px">
+        <span class="tag python">pure Python</span>
+        <span class="tag cost-zero">$0</span>
+      </div>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row l3">
+      <b>Layer 3: Deterministic validator</b> — 8 named @rule functions
+      <div style="margin-top:4px;font-size:12px;color:var(--text-dim)">
+        Each finding cites a stable rule_id. The "bread" of the sandwich.
+      </div>
+      <div style="margin-top:4px">
+        <span class="tag python">pure Python</span>
+        <span class="tag cost-zero">$0</span>
+      </div>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row gate">
+      <b>Gate:</b> needs_judge?<br>
+      <span style="color:var(--green)">no  → done · ~85% exit here at $0</span><br>
+      <span style="color:var(--orange)">yes → Layer 4 · ~15% of records</span>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row l4">
+      <b>Layer 4: Judge LLM (Haiku tool_use)</b> — conditional, structured output
+      <div style="margin-top:4px;font-size:12px;color:var(--text-dim)">
+        Output constrained at API level via tool_use JSON schema
+      </div>
+      <div style="margin-top:4px">
+        <span class="tag llm">LLM (cloud)</span>
+        <span class="tag cost-paid">~$0.001/record</span>
+      </div>
+    </div>
+    <div class="flow-arrow">↓</div>
+
+    <div class="flow-row" style="border-left-color: var(--green);">
+      <b>SDTM-compliant Observation</b> · canonical, validated, signed
+    </div>
+  </div>
+
+  <div class="callout">
+    <b>The shape is the architecture.</b> The LLM is sandwiched between deterministic Python on both sides. It is asked to do one job — parse text into a Pydantic model — and nothing else.
+  </div>
+
+  <div class="callout" style="background:rgba(252,211,77,.06); border-color:var(--yellow); margin-top:8px">
+    <b style="color:var(--yellow)">Two safety layers sit on top of the sandwich:</b><br>
+    • <b>Grounding</b> — every numeric value the LLM emits must trace as a substring of the source text (deterministic post-check). Catches semantic hallucinations that constrained decoding can't.<br>
+    • <b>HITL</b> — when validator says ERROR, or judge says <code>human_review</code>, or judge confidence &lt; 0.4, the record routes to a human review queue. ~2% of records. The pipeline is fast because most records skip the LLM, and safe because the unsure ones always reach a human.
+  </div>
+</section>
+
+<!-- ─── 5 Concepts ───────────────────────────────────────────────── -->
+<section class="panel" id="panel-concepts">
+  <h2>The 5 Concepts</h2>
+  <p style="color:var(--text-dim);margin:0 0 14px">Each concept maps to one piece of the architecture.</p>
+
+  <div class="concepts">
+
+    <div class="concept">
+      <span class="num">1</span><h3>Constrained Decoding</h3>
+      <p style="margin-top:8px">The schema IS the grammar. Outlines compiles a Pydantic model into a finite-state machine; the LLM cannot emit invalid enum values.</p>
+      <pre><code><span class="star">★</span> generator = generate.json(model, RawObservation)
+raw_obs = generator(prompt)
+<span style="color:var(--text-dim)"># raw_obs.vs_code is GUARANTEED a valid VitalSignCode</span></code></pre>
+      <div class="map">Maps to → <b>Layer 1 (extractor/constrained.py)</b> · <b>schemas/enums.py</b></div>
+    </div>
+
+    <div class="concept">
+      <span class="num">2</span><h3>The Lossy Parser</h3>
+      <p style="margin-top:8px">Every extracted field is <code>Optional</code>. The LLM is allowed to say "I don't know." Honest extraction, never fabrication.</p>
+      <pre><code>class RawObservation(BaseModel):
+    vs_code:       VitalSignCode | None = None
+    value_numeric: float         | None = None
+    unit:          UCUMUnit      | None = None
+    measured_at:   datetime      | None = None</code></pre>
+      <div class="map">Maps to → <b>schemas/observation.py</b></div>
+    </div>
+
+    <div class="concept">
+      <span class="num">3</span><h3>Compiled AI</h3>
+      <p style="margin-top:8px">Use the LLM to extract facts. Use Python for everything else — lookups, math, rules, hashes. The 1000× cost reduction lives here.</p>
+      <pre><code>def to_si(value, unit, vs_code):
+    <span style="color:var(--text-dim)"># Pure Python. Microseconds. $0 per call.</span>
+    if vs_code == BODY_TEMP and unit == FAHRENHEIT:
+        return ((value - 32) * 5.0/9.0, CELSIUS)
+    return (value, unit)</code></pre>
+      <div class="map">Maps to → <b>Layer 2 (computation/engine.py)</b></div>
+    </div>
+
+    <div class="concept">
+      <span class="num">4</span><h3>Deterministic Validator</h3>
+      <p style="margin-top:8px">Each rule is a named Python function with a stable rule_id. A regulator can re-run the validator and get bit-identical results.</p>
+      <pre><code><span class="star">@rule(</span>"VS-003", WARN, "value_numeric", ...)
+def check_hr_range(obs, report):
+    if obs.vs_code == HEART_RATE:
+        if not (40 &lt;= obs.value_numeric &lt;= 200):
+            report.add(<span style="color:var(--text-dim)"># named finding</span>)</code></pre>
+      <div class="map">Maps to → <b>Layer 3 (validator/rules.py)</b></div>
+    </div>
+
+    <div class="concept">
+      <span class="num">5</span><h3>The Conditional Judge</h3>
+      <p style="margin-top:8px">The judge LLM never sees clean records. It fires only on WARN/ERROR findings — empirically ~15% of input.</p>
+      <pre><code>def judge(obs, val_report):
+    if not val_report.needs_judge:
+        return None  <span style="color:var(--text-dim)"># 85% exit at $0</span>
+    <span style="color:var(--text-dim)"># Haiku via tool_use — output also constrained</span>
+    return self.client.messages.create(...)</code></pre>
+      <div class="map">Maps to → <b>Layer 4 (judge/llm_judge.py)</b></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ─── 5 Layers ─────────────────────────────────────────────────── -->
+<section class="panel" id="panel-layers">
+  <h2>The 5 Layers — Where Each Concept Lives</h2>
+
+  <div class="card layer l0">
+    <div class="badge">L0</div>
+    <div>
+      <h3>Source parsers</h3>
+      <p><span class="tag python">pure Python</span> <span class="tag cost-zero">$0</span></p>
+      <p>Three parsers normalise vendor JSON, site CRF CSVs, and HL7 v2 fragments into a common <code>SourceRecord</code>. stdlib only — no LLM, no third-party deps.</p>
+      <p style="font-size:12px"><b>File:</b> parsers/sources.py</p>
+    </div>
+  </div>
+
+  <div class="card layer l1">
+    <div class="badge">L1</div>
+    <div>
+      <h3>Constrained extraction <span class="tag llm">LLM</span></h3>
+      <p>The only steady-state LLM call. Outlines compiles <code>RawObservation</code> into an FSM; the model emits Pydantic-valid JSON or null. A drop-in <code>InstructorExtractor</code> alternative is documented for cloud APIs.</p>
+      <p style="font-size:12px"><b>Concept:</b> Constrained Decoding · Lossy Parser<br><b>File:</b> extractor/constrained.py</p>
+    </div>
+  </div>
+
+  <div class="card layer l2">
+    <div class="badge">L2</div>
+    <div>
+      <h3>Computation module <span class="tag python">pure Python</span></h3>
+      <p>LOINC dict lookup → UCUM math → range checks → SHA-1 fingerprint → LOCF imputer. Every operation deterministic. Every operation $0.</p>
+      <p style="font-size:12px"><b>Concept:</b> Compiled AI<br><b>File:</b> computation/engine.py</p>
+    </div>
+  </div>
+
+  <div class="card layer l3">
+    <div class="badge">L3</div>
+    <div>
+      <h3>Deterministic validator <span class="tag python">pure Python</span></h3>
+      <p>Eight rules, each registered via the <code>@rule</code> decorator. The validator emits a <code>ValidationReport</code> with named findings. The <code>needs_judge</code> property gates Layer 4.</p>
+      <p style="font-size:12px"><b>Concept:</b> Deterministic Validator<br><b>File:</b> validator/rules.py</p>
+    </div>
+  </div>
+
+  <div class="card layer l4">
+    <div class="badge">L4</div>
+    <div>
+      <h3>Conditional judge <span class="tag llm">LLM (cloud)</span></h3>
+      <p>Claude Haiku via Anthropic's <code>tool_use</code>. Output is constrained at the API level — the model cannot return prose. Fires on ~15% of records, returns <code>JudgeReport</code> with plausibility, action, and rationale.</p>
+      <p style="font-size:12px"><b>Concept:</b> Conditional Judge<br><b>File:</b> judge/llm_judge.py</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Cost Math ────────────────────────────────────────────────── -->
+<section class="panel" id="panel-cost">
+  <h2>Cost Math (per 1,000 records)</h2>
+
+  <table>
+    <thead><tr><th>Approach</th><th>LLM calls</th><th class="num">Cost</th></tr></thead>
+    <tbody>
+      <tr><td>Naive: Opus does everything</td><td>1,000</td><td class="num">~$200.00</td></tr>
+      <tr><td>Hybrid: Sonnet extract + validate</td><td>2,000</td><td class="num">~$10.00</td></tr>
+      <tr class="highlight"><td>This pipeline (Outlines + judge)</td><td>~150</td><td class="num">~$0.15</td></tr>
+    </tbody>
+  </table>
+
+  <h3 style="margin-top:24px">Visual</h3>
+  <div class="bar-chart">
+    <div class="bar-row">
+      <div class="bar-label">Naive (Opus)</div>
+      <div class="bar-track"><div class="bar-fill expensive" style="width:100%"></div></div>
+      <div class="bar-value">$200</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Hybrid (Sonnet)</div>
+      <div class="bar-track"><div class="bar-fill" style="width:5%"></div></div>
+      <div class="bar-value">$10</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">This pipeline</div>
+      <div class="bar-track"><div class="bar-fill cheap" style="width:0.3%"></div></div>
+      <div class="bar-value">$0.15</div>
+    </div>
+  </div>
+
+  <h3>Why so cheap?</h3>
+  <ul class="bullets">
+    <li><b>Layer 1</b> uses a local model (Outlines + Mistral-7B). On-prem GPU = ~$0 marginal cost per call.</li>
+    <li><b>Layers 2 + 3</b> are pure Python. Microseconds, not seconds. $0 per call.</li>
+    <li><b>Layer 4</b> is conditional. Skips ~85% of records entirely. The 15% that fire cost ~$0.001 each via Haiku.</li>
+  </ul>
+
+  <div class="callout">
+    The 1000× isn't marketing. It falls directly out of the architecture: <b>the LLM is asked to do exactly one job — parse text into a Pydantic model.</b> Everything else is Python.
+  </div>
+</section>
+
+<!-- ─── Libraries ────────────────────────────────────────────────── -->
+<section class="panel" id="panel-libs">
+  <h2>The Two Constrained-Decoding Libraries</h2>
+  <p style="color:var(--text-dim);margin:0 0 14px">This pipeline features both. Pick the one that fits your deployment.</p>
+
+  <div class="card">
+    <h3 style="color:var(--purple)">Outlines (primary)</h3>
+    <p><b>How it works:</b> token-level FSM constraint. Compiles a Pydantic model into a finite-state machine. At every generation step, masks logits so only schema-conformant tokens can be sampled.</p>
+    <p><b>Guarantee:</b> the model <i>structurally cannot</i> emit invalid output.</p>
+    <p><b>Best for:</b> local models · strict guarantees · high throughput · regulated industries</p>
+    <pre><code>generator = outlines.generate.json(model, RawObservation)
+raw_obs   = generator(prompt)</code></pre>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--blue)">Instructor (alternative)</h3>
+    <p><b>How it works:</b> response-level retry. Asks the model for JSON, validates against the Pydantic schema, retries on failure (up to <code>max_retries</code>).</p>
+    <p><b>Guarantee:</b> the model <i>can</i> emit invalid output, but it gets caught and re-asked.</p>
+    <p><b>Best for:</b> cloud APIs (OpenAI / Anthropic) · prototypes · 5-minute integration</p>
+    <pre><code>client = instructor.from_anthropic(anthropic.Anthropic())
+raw_obs = client.messages.create(
+    model="claude-haiku-4-5",
+    response_model=RawObservation,
+    max_retries=3,
+)</code></pre>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--orange)">Anthropic tool_use (Layer 4)</h3>
+    <p><b>How it works:</b> JSON schema enforced on tool arguments. The model must call the named tool with arguments that validate against the schema.</p>
+    <p><b>Where used:</b> the conditional judge LLM. The judge cannot return prose; it must structure its output.</p>
+    <pre><code>response = client.messages.create(
+    tools=[{"name":"submit_judgement", "input_schema": ...}],
+    tool_choice={"type":"tool","name":"submit_judgement"},
+)</code></pre>
+  </div>
+
+  <div class="callout">
+    <b>The pattern:</b> wherever an LLM speaks, force structure. Token-level (Outlines), response-level (Instructor), or API-level (tool_use). Choose your weapon — but never let a healthcare LLM emit free prose into a downstream system.
+  </div>
+</section>
+
+<!-- ─── Compliance ────────────────────────────────────────────────── -->
+<section class="panel" id="panel-compliance">
+  <h2>ALCOA++, 21 CFR Part 11, Grounding &amp; HITL</h2>
+  <p style="color:var(--text-dim);margin:0 0 14px">Compliance falls out of the design. Every LLM-touched record carries its full provenance forward; ambiguous records always reach a human.</p>
+
+  <div class="card">
+    <h3 style="color:var(--yellow)">Grounding — extract what's in the source, never invent</h3>
+    <p style="font-size:13px;margin:0 0 8px">The LLM has no RAG corpus, no retrieval, no external context. The source text is its only evidence. After extraction, a deterministic check verifies every emitted numeric value can be located as a substring of the source:</p>
+    <pre><code>def verify_grounding(raw):
+    src = raw.source_record.lower()
+    if raw.value_numeric is not None:
+        candidates = {f"{v:g}", f"{v:.0f}", f"{v:.1f}", f"{v:.2f}"}
+        if not any(c in src for c in candidates):
+            return ["value not in source — possible hallucination"]
+    if raw.subject_id and raw.subject_id.lower() not in src:
+        return ["subject_id not in source"]</code></pre>
+    <p style="font-size:13px;color:var(--text-dim);margin-top:8px">Outlines prevents <i>structural</i> hallucinations (invalid enums); this catches <i>semantic</i> ones (plausible values that aren't in the source).</p>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--orange)">HITL — when the machine isn't sure, it stops</h3>
+    <p style="font-size:13px;margin:0 0 8px">Three triggers route a record out of automation entirely:</p>
+    <pre><code>def should_route_to_hitl(val_report, judge_report, threshold=0.4):
+    if val_report.error_count &gt; 0:
+        return HITLReason.VALIDATOR_ERROR        <span style="color:var(--text-dim)"># urgent</span>
+    if judge_report:
+        if judge_report.suggested_action == "human_review":
+            return HITLReason.JUDGE_REQUESTED
+        if judge_report.plausibility_score &lt; threshold:
+            return HITLReason.JUDGE_LOW_CONFIDENCE
+    if val_report.needs_judge and judge_report is None:
+        return HITLReason.JUDGE_UNAVAILABLE
+    return None</code></pre>
+    <p style="font-size:13px;color:var(--text-dim);margin-top:8px">~85% records fully automated · ~15% reach the judge · ~2% reach a human. The reviewer opens the <code>ReviewPacket</code> (input vs output side-by-side) and either approves (creates an <code>ESignature</code>), rejects, or amends.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--purple)">What Gets Recorded for Every LLM Call</h3>
+    <pre><code>AuditEvent(
+  source_id      = "v-0007",
+  layer          = "L1",
+  actor          = "system:dct_simple",         <span style="color:var(--text-dim)"># Attributable</span>
+  timestamp_utc  = "2026-05-03T08:00:01.234Z",  <span style="color:var(--text-dim)"># Contemporaneous</span>
+
+  input_hash     = sha256(raw_input),           <span style="color:var(--text-dim)"># what went IN</span>
+  input_excerpt  = "subject=S1 metric=PULSE…",  <span style="color:var(--text-dim)"># for human review</span>
+  output_excerpt = '{"vs_code":"8867-4"…}',     <span style="color:var(--text-dim)"># for human review</span>
+  payload_hash   = sha256(output),              <span style="color:var(--text-dim)"># what came OUT</span>
+
+  model_snapshot = ModelSnapshot(
+    model_id        = "Mistral-7B-v0.3",
+    model_version   = "weights:sha256-pinned",
+    library         = "outlines==0.0.46",
+    prompt_id       = "extract_vital_sign",
+    prompt_version  = "1.0.0",
+    prompt_hash     = sha256(rendered_prompt),
+    <span class="star">temperature     = 0.0,</span>                       <span style="color:var(--text-dim)"># deterministic</span>
+    <span class="star">seed            = 42,</span>
+  ),
+
+  retention_years = 7,                          <span style="color:var(--text-dim)"># Part 11 §11.10(c)</span>
+  prev_hash, chain_hash                         <span style="color:var(--text-dim)"># tamper-evident</span>
+)</code></pre>
+    <p style="font-size:13px;color:var(--text-dim);margin-top:8px">A reviewer opens the audit log and sees the raw clinical text on the left, the canonical Pydantic structure on the right, and the exact model+prompt+seed that made the leap.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--orange)">Tracked Corrections — Part 11 §11.10(e)</h3>
+    <p style="font-size:13px;margin:0 0 8px">Originals are <i>never</i> overwritten. An <code>Amendment</code> is appended:</p>
+    <pre><code>log.record_amendment(Amendment(
+    source_id      = "v-0007",
+    field_name     = "value_numeric",
+    <span class="star">prev_value     = 72,</span>           <span style="color:var(--text-dim)"># preserved forever</span>
+    <span class="star">new_value      = 70,</span>           <span style="color:var(--text-dim)"># the correction</span>
+    <span class="star">reason_code    = "transcription_error",</span>
+    reason_text    = "Source CRF says 70; OCR misread.",
+    actor          = "dr.smith@trial.org",
+    prev_chain_hash = "&lt;links to event being amended&gt;",
+))</code></pre>
+    <p style="font-size:13px;color:var(--text-dim);margin-top:8px">Reason codes are a controlled vocabulary: transcription_error, data_entry_error, source_correction, investigator_review, monitor_query_resolution, regulatory_request, other. Free text without a valid code is rejected at the API boundary.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--blue)">Side-by-Side Review Before Signing</h3>
+    <p style="font-size:13px;margin:0 0 8px">A clinical data manager doesn't sign blindly. The audit log builds a <code>ReviewPacket</code> bundling raw input, canonical output, validator findings, and judge rationale — and the e-signature binds the entire packet:</p>
+    <pre><code>packet = log.build_review_packet(
+    source_id        = "v-0007",
+    raw_input        = original_vendor_json,
+    canonical_output = canonical_observation,
+)
+<span style="color:var(--text-dim)"># Reviewer sees raw_input vs canonical_output side-by-side,</span>
+<span style="color:var(--text-dim)"># reads validator findings + judge rationale, then signs.</span>
+sig = ESignature.sign(
+    user_id  = "dr.smith@trial.org",
+    record   = packet,            <span class="star">← binds entire packet</span>
+    meaning  = "approved-for-submission",
+)</code></pre>
+    <p style="font-size:13px;color:var(--text-dim);margin-top:8px">If anyone tampers with either side of the packet after signing, <code>sig.verify(packet)</code> returns False.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--green)">ALCOA++ Mapping</h3>
+    <table>
+      <thead><tr><th>Principle</th><th>How the pipeline satisfies it</th></tr></thead>
+      <tbody>
+        <tr><td><b>A</b>ttributable</td><td><code>AuditEvent.actor</code> — user_id or system_id</td></tr>
+        <tr><td><b>L</b>egible</td><td>JSONL, UTF-8, <code>model_dump(mode="json")</code></td></tr>
+        <tr><td><b>C</b>ontemporaneous</td><td><code>timestamp_utc</code> at the moment of action</td></tr>
+        <tr><td><b>O</b>riginal</td><td>Raw source in <code>source_record</code> + <code>input_excerpt</code></td></tr>
+        <tr><td><b>A</b>ccurate</td><td>Layer 3 validator + 8 <code>@rule</code> functions</td></tr>
+        <tr><td><b>C</b>omplete</td><td>Every layer emits an event — gaps break the chain</td></tr>
+        <tr><td><b>C</b>onsistent</td><td>SHA-256 hash chain, monotonic order</td></tr>
+        <tr><td><b>E</b>nduring</td><td>Append-only JSONL; <code>retention_years ≥ 7</code></td></tr>
+        <tr><td><b>A</b>vailable</td><td><code>log.export(source_id)</code> returns full history</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--blue)">21 CFR Part 11 Mapping</h3>
+    <table>
+      <thead><tr><th>§</th><th>Requirement</th><th>Implementation</th></tr></thead>
+      <tbody>
+        <tr><td>§11.10(a)</td><td>Validation</td><td>unit tests + Layer 3</td></tr>
+        <tr><td>§11.10(b)</td><td>Accurate copies</td><td><code>AuditLog.export()</code></td></tr>
+        <tr><td>§11.10(c)</td><td>Record protection + retention</td><td>hash chain + <code>retention_years ≥ 6</code></td></tr>
+        <tr><td>§11.10(e)</td><td>Audit trail with change reason</td><td><code>Amendment</code> + <code>reason_code</code></td></tr>
+        <tr><td>§11.50</td><td>Signature manifestation</td><td><code>ESignature.meaning</code></td></tr>
+        <tr><td>§11.70</td><td>Signature/record linkage</td><td><code>ESignature.record_hash</code></td></tr>
+        <tr><td>§11.200</td><td>E-signature components</td><td>user_id + meaning + timestamp + hash</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <b>One last thing — temperature 0 + seed locking.</b> Every LLM layer runs with <code>temperature=0.0</code> and (where supported) a fixed integer <code>seed</code>. Same prompt → bit-identical output across runs. Foundation of "Accurate" in ALCOA and §11.10(a) Validation in Part 11.
+  </div>
+
+  <div class="callout">
+    <b>The principle:</b> traceability isn't a document, it's a data structure. "Show me your audit trail" becomes <code>tail audit.jsonl</code>.
+  </div>
+</section>
+
+</main>
+
+<script>
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>

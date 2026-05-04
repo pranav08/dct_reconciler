@@ -1,45 +1,27 @@
-# Designing LLM Pipelines for Clinical Data: A Pattern for ALCOA++ and 21 CFR Part 11 Compliance
+# AI Is Not Magic — It's a Lossy Parser
 
-## The LLM is one component, not the system. Notes on architecture, cost discipline, and human review from a working DCT pipeline.
+## How I built a clinical trial data pipeline that's 170× cheaper than the naive cloud-LLM approach
 
 ---
 
-Most teams shipping LLM features into clinical-data workflows discover the
-same problem on the same timeline. The first prototype is fast and convincing
-— a model reads a messy clinical note and produces a clean structured output.
-Then the questions start arriving. *Can you reproduce the run from last
-Tuesday? Where's the audit trail? Why did the same input give a different
-output? What's the cost at one million records a day? What happens when the
-model is wrong, and who is accountable?*
+Most LLM pipelines in healthcare fail not because the model is wrong, but
+because it's asked to do the wrong job. The model gets handed a 50-line
+clinical narrative and a fuzzy mandate: *"figure this out."* It hallucinates
+a dosage, invents a diagnosis code, drifts between runs, and burns $200 per
+1,000 records doing it.
 
-The prototype that answered the first question well rarely survives the rest.
-Not because the underlying model is bad, but because the architecture put the
-LLM in a role that doesn't fit a regulated environment: as the system, rather
-than as a component within one.
+There's a better mental model. Stop thinking of the LLM as a worker. Start
+thinking of it as a **lossy parser** — a function that takes unstructured
+chaos and emits structured, schema-conformant facts. Nothing more. Everything
+else — the logic, the math, the rules, the decisions — is plain Python.
 
-I want to share a pattern that I've found holds up under those questions —
-the architecture for clinical-data pipelines that need to satisfy ALCOA++
-and 21 CFR Part 11, while still benefitting from modern language models. It's a careful arrangement of pieces that already exist:
-constrained decoding, Pydantic schemas, deterministic validators, conditional
-LLM judging, append-only audit logs, and human-in-the-loop routing. The
-contribution, such as it is, is in how they fit together.
+I built a Decentralised Clinical Trial (DCT) data quality pipeline around
+this idea. The architecture has 5 layers. Only **two** of them call an LLM,
+and one of those is conditional. The result: ~85% of records never trigger
+an LLM call, costs drop to about $0.15 per 1,000 records, and every output
+is auditable to a named Pydantic schema and a named Python function.
 
-The architecture has five layers. Only two of them call an LLM, and one of
-those is conditional. The result is a pipeline where roughly 85% of records
-never trigger an LLM call at all, every output traces back to a named
-Pydantic schema and a named Python function, and the per-record cost lands
-around 100s of time below what a naive cloud-LLM approach would
-produce.
-
-The mental model that makes the rest of the architecture obvious is this:
-**the LLM is a lossy parser.** A function that takes unstructured chaos and
-emits structured, schema-conformant facts. Nothing more. The logic, the
-math, the rules, the decisions — those are plain Python, written by people,
-testable like any other code, auditable on a regulator's first ask.
-
-What follows is the five concepts that hold the architecture together, the
-compliance work that falls out of the design, and the human-review patterns
-that make the whole thing safe to operate.
+Below are the five concepts, each with the architectural piece it maps to.
 
 ---
 
@@ -138,7 +120,7 @@ key idea is simple: the LLM is a code generator, not a runtime.
 
 ## Concept 4 — The Deterministic Validator: The "Bread" of the Sandwich
 
-A validator is the layer no auditor will ever complain about. Pure Python (obviously written by LLM itself in first place).
+A validator is the layer no auditor will ever complain about. Pure Python.
 Each rule is a named function. Each finding cites a stable rule_id.
 
 ```python
@@ -314,9 +296,9 @@ last 2% always reach a human, never a guess.**
 
 ---
 
-## ALCOA++ and 21 CFR Part 11 - Inherent to design
+## ALCOA++ and 21 CFR Part 11 — Compliance Falls Out of the Design
 
-For a regulated industry, "auditable" can be a deal-breaker.
+For a regulated industry, "auditable" is not a checkbox — it's the deal-breaker.
 The good news is that the same architecture that makes the pipeline cheap also
 makes it compliant. Both ALCOA++ and 21 CFR Part 11 reduce, in code, to one
 short Python module.
@@ -454,32 +436,27 @@ JSONL file."
 
 ---
 
-## A Note on Where This Sits Relative to "Agents"
+## What This Reframes
 
 The big shift on LinkedIn timelines right now is "agents." Long-running
-LLM loops, tool calls, planners, reflection, evaluation. The framing has
-real applications, and I'm not going to argue against it in general.
+LLM loops, tool calls, planners, reflection, evaluation. It's seductive
+and it has its place.
 
 But for a regulated industry — clinical trials, medical devices,
-pharmacovigilance, payer adjudication — the agent framing inverts the
-authority gradient. You don't want the LLM in the driver's seat. You
-want it as a component, doing one well-defined job, with deterministic
-Python doing the load-bearing work and humans on the loop where the
-machine isn't sure.
+pharmacovigilance, payer adjudication — the agent framing is exactly
+backwards. You don't want the LLM in the driver's seat. You want it as a
+parser bolted onto the side, with deterministic Python doing every load-
+bearing piece of work.
 
-Most of what I've described is not new. Constrained decoding, Pydantic,
-hash-chained logs, e-signatures, controlled-vocabulary amendments — all
-of these exist independently. The contribution is in the arrangement: a
-pattern where compliance and cost discipline are emergent properties of
-the architecture, not a layer of governance bolted on after the fact.
-
-If you're building something similar, or if your team is wrestling with
-the same questions on a different problem domain, I'd be interested to
-hear what's worked for you.
+The LLM is a lossy parser. It's not magic. And honestly? Once you treat
+it that way, your pipelines get cheaper, your code gets testable, and
+your auditors stop calling.
 
 ---
 
 **Code:** [link to repo]
 **Stack:** Pydantic v2 · Outlines · Instructor · Anthropic Haiku · pure Python
 
-#ClinicalTrials #MedTech #LLM #ALCOAplus #CFR21Part11 #DataIntegrity #PlatformEngineering #SystemDesign
+What's the lossiest parser in *your* stack?
+
+#AI #LLM #ClinicalTrials #MedTech #Pydantic #Outlines #SystemDesign #ALCOAplus #CFR21Part11 #DataIntegrity
