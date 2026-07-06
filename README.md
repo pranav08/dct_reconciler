@@ -1,5 +1,7 @@
 # Designing LLM Pipelines for Clinical Data: A Pattern for ALCOA++ and 21 CFR Part 11 Compliance
 
+https://medium.com/towards-artificial-intelligence/designing-llm-pipelines-for-clinical-data-a-pattern-for-alcoa-and-21-cfr-part-11-compliance-84f8c91d8d28
+
 ## The LLM is one component, not the system. Notes on architecture, cost discipline, and human review from a working DCT pipeline.
 
 ---
