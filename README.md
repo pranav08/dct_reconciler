@@ -481,7 +481,6 @@ hear what's worked for you.
 
 ---
 
-**Code:** [link to repo]
 **Stack:** Pydantic v2 · Outlines · Instructor · Anthropic Haiku · pure Python
 
 #ClinicalTrials #MedTech #LLM #ALCOAplus #CFR21Part11 #DataIntegrity #PlatformEngineering #SystemDesign
